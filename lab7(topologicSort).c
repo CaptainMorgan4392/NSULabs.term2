@@ -69,7 +69,11 @@ void freeDynamicMemory(Graph* graph) {
 }
 
 void checkQuantities(int n, int m) {
-    if (n < 0 || n > 1000) {
+    if (n < 0) {
+        printf("%s", namesOfExceptions[3]);
+        flagOfException = BAD_INPUT;
+        return;
+    } else if (n > 1000) {
         printf("%s", namesOfExceptions[0]);
         flagOfException = BAD_NUMBER_VERTICES;
         return;
@@ -117,13 +121,16 @@ void getConnectivityTable(Graph* graph, int n, int m) {
             checkIndexes(n, verticeFrom, verticeTo);
             if (flagOfException == 0) {
                 graph -> connectivityTable[verticeFrom - 1][verticeTo - 1] = true;
-            } else return;
+            } else {
+                freeDynamicMemory(graph);
+                return;
+            }
         }
     }
 }
 
 void createGraph(Graph* graph) {
-    int n, m;
+    int n = -1, m = -1;
     if (scanf("%d", &n) == 0) {
         printf("%s", namesOfExceptions[3]);
         flagOfException = BAD_INPUT;

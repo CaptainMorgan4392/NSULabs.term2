@@ -22,11 +22,6 @@ typedef enum {
     BAD_INPUT
 } Exceptions;
 
-typedef enum {
-    WHITE,
-    BLACK
-} Colors;
-
 short flagOfException = 0;
 bool isTreeExist = true;
 
@@ -56,7 +51,7 @@ void checkQuantities(int n, int m) {
         printf("%s", namesOfExceptions[4]);
         flagOfException = BAD_INPUT;
         return;
-    } else if (n > 1000) {
+    } else if (n > 5000) {
         printf("%s", namesOfExceptions[0]);
         flagOfException = BAD_NUMBER_VERTICES;
         return;
@@ -67,13 +62,6 @@ void checkQuantities(int n, int m) {
     } else if (m > (n * (n + 1) / 2)) {
         printf("%s", namesOfExceptions[1]);
         flagOfException = BAD_NUMBER_EDGES;
-        return;
-    } else if (n == 0) {
-        printf("no spanning tree");
-        isTreeExist = false;
-        return;
-    } else if (n == 1 && m == 0) {
-        isTreeExist = false;
         return;
     }
 }
@@ -197,8 +185,8 @@ void getSortedTableOfDistances(Graph *graph) {
     }
 
     size_t current = 0;
-    for (size_t i = 0; i < graph -> counterOfEdges; i++) {
-        for (size_t j = i; j < graph -> counterOfEdges; j++) {
+    for (int i = 0; i < graph -> numberOfVertices; i++) {
+        for (int j = i; j < graph -> numberOfVertices; j++) {
             if (graph -> connectivityTable[i][j] != 0) {
                 graph -> distancesBetweenVertices[current][0] = (size_t)i;
                 graph -> distancesBetweenVertices[current][1] = (size_t)j;
@@ -209,55 +197,62 @@ void getSortedTableOfDistances(Graph *graph) {
     sortTable(graph -> distancesBetweenVertices, 0, graph -> counterOfEdges);
 }
 
-bool hasUntiedVertice(Graph* graph) {
+bool hasSpanningTree(Graph *graph) {
+    bool hasTree = false;
     for (int i = 0; i < graph -> numberOfVertices; i++) {
+        if (i == 0) {
+            hasTree = true;
+        }
         bool hasBound = false;
         for (int j = 0; j < graph -> numberOfVertices; j++) {
             if (graph -> connectivityTable[i][j] > 0 && i != j) {
                 hasBound = true;
             }
         }
-        if (!hasBound) {
-            return true;
-        }
+        hasTree = hasTree && hasBound;
     }
 
+    if (!hasTree && graph -> numberOfVertices != 1) {
+        return false;
+    }
+
+    return true;
+}
+
+int findSet(int set, int* parents) {
+    if (set == parents[set]) {
+        return set;
+    }
+
+    return parents[set] = findSet(parents[set], parents);
+}
+
+bool unionSets(int set1, int set2, int* parents) {
+    set1 = findSet(set1, parents);
+    set2 = findSet(set2, parents);
+
+    if (set1 != set2) {
+        parents[set2] = set1;
+        return true;
+    }
     return false;
 }
 
 void KruskalAlgorithm(Graph *graph) {
-    Colors* colorsOfVertices = calloc(graph -> counterOfEdges, sizeof(Colors));
-    for (size_t i = 0; i < graph -> counterOfEdges; i++) {
-        colorsOfVertices[i] = WHITE;
-    }
-
-    if (hasUntiedVertice(graph)) {
+    if (!hasSpanningTree(graph)) {
         printf("no spanning tree");
-        free(colorsOfVertices);
-        freeDynamicMemory(graph);
         return;
     }
+    int* DSU = (int*)calloc((size_t)graph -> numberOfVertices, sizeof(int));
+    int* parents = (int*)calloc((size_t)graph -> numberOfVertices, sizeof(int));
+    for (int i = 0; i < graph -> numberOfVertices; i++) {
+        DSU[i] = i;
+        parents[i] = i;
+    }
 
-    int currentNumberOfInvolvedVertice = 0;
     for (size_t i = 0; i < graph -> counterOfEdges; i++) {
-        if (currentNumberOfInvolvedVertice == graph -> numberOfVertices) {
-            break;
-        }
-
-        if (colorsOfVertices[graph -> distancesBetweenVertices[i][0]] == WHITE) {
-            colorsOfVertices[graph -> distancesBetweenVertices[i][0]] = BLACK;
-            if (colorsOfVertices[graph -> distancesBetweenVertices[i][1]] == WHITE) {
-                colorsOfVertices[graph -> distancesBetweenVertices[i][1]] = BLACK;
-                currentNumberOfInvolvedVertice++;
-            }
+        if (unionSets(DSU[graph -> distancesBetweenVertices[i][0]], DSU[graph -> distancesBetweenVertices[i][1]], parents)) {
             printf("%zu %zu\n", graph -> distancesBetweenVertices[i][0] + 1, graph -> distancesBetweenVertices[i][1] + 1);
-            currentNumberOfInvolvedVertice++;
-        } else if (colorsOfVertices[graph -> distancesBetweenVertices[i][1]] == WHITE) {
-            colorsOfVertices[graph -> distancesBetweenVertices[i][1]] = BLACK;
-            currentNumberOfInvolvedVertice++;
-            printf("%zu %zu\n", graph -> distancesBetweenVertices[i][0] + 1, graph -> distancesBetweenVertices[i][1] + 1);
-        } else {
-            continue;
         }
     }
 }

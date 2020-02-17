@@ -3,11 +3,10 @@
 #define true 1
 
 #include <stdio.h>
+#include <limits.h>
 #include <mm_malloc.h>
 #include <memory.h>
-#include <limits.h>
 
-#define ZERO 0
 #define MAX_VERTICES 5000
 #define MAX_LENGTH INT_MAX
 
@@ -19,12 +18,12 @@ typedef enum {
     BAD_VERTEX,
     BAD_LENGTH,
     BAD_INPUT,
-    NO_SPANNING_TREE
-} ReturnCodes;
+    NO_SPAN_TREE
+} ExitCodes;
 
 const char* exitMessages[] = {
         "ok",
-        "out of memory",
+        "no memory",
         "bad number of vertices",
         "bad number of edges",
         "bad vertex",
@@ -34,234 +33,225 @@ const char* exitMessages[] = {
 };
 
 typedef struct _graph Graph;
-typedef struct _dsu DSU;
 
 struct _graph {
     int vertices;
     int edges;
-    int* verticesFrom;
-    int* verticesTo;
-    int64_t* lengths;
+    int** table;
 };
 
+typedef struct _dsu DSU;
+
 struct _dsu {
-    int* ranks;
     int* parents;
 };
 
-int get(DSU* dsu, int set) {
-    if (set == dsu -> parents[set]) {
-        return set;
+void swap(int* p1, int* p2) {
+    int temp = *p1;
+    *p1 = *p2;
+    *p2 = temp;
+}
+
+int find(DSU* dsu, int s) {
+    if (s == dsu -> parents[s]) {
+        return s;
     }
 
-    return dsu -> parents[set] = get(dsu, dsu -> parents[set]);
+    return dsu -> parents[s] = find(dsu, dsu -> parents[s]);
 }
 
-boolean unite(int setFirst, int setSecond, DSU* dsu) {
-    setFirst = get(dsu, setFirst);
-    setSecond = get(dsu, setSecond);
-    if (setFirst != setSecond) {
-        if (setFirst < setSecond) {
-            dsu -> parents[setSecond] = setFirst;
-            dsu -> ranks[setFirst] += dsu -> ranks[setSecond];
-            dsu -> ranks[setSecond] = 0;
-        } else {
-            dsu -> parents[setFirst] = setSecond;
-            dsu -> ranks[setSecond] += dsu -> ranks[setFirst];
-            dsu -> ranks[setFirst] = 0;
-        }
-        return true;
-    }
-    return false;
-}
-
-void swapLong(int64_t *a, int64_t *b) {
-    int64_t temp = *a;
-    *a = *b;
-    *b = temp;
-}
-
-void swapInt(int* a, int* b) {
-    int temp = *a;
-    *a = *b;
-    *b = temp;
-}
-
-void freeDynamic(Graph* g) {
-    if (g) {
-        if (g -> verticesFrom) {
-            free(g -> verticesFrom);
-        }
-
-        if (g -> verticesTo) {
-            free(g -> verticesTo);
-        }
-
-        if (g -> lengths) {
-            free(g -> lengths);
-        }
-
-        free(g);
-    }
-}
-
-boolean inRangeInt(int value, int lb, int ub) {
-    if (lb <= value && value <= ub) {
-        return true;
-    }
-
-    return false;
-}
-
-boolean inRangeLong(int64_t value, int64_t lb, int64_t ub) {
-    if (lb <= value && value <= ub) {
-        return true;
-    }
-
-    return false;
-}
-
-ReturnCodes createGraph(Graph* g, int vertices, int edges) {
-    g -> vertices = vertices;
-    g -> edges = edges;
-
-    g -> verticesFrom = (int*)calloc((size_t)vertices, sizeof(int));
-    g -> verticesTo = (int*)calloc((size_t)vertices, sizeof(int));
-    g -> lengths = (int64_t*)calloc((size_t)vertices, sizeof(int64_t));
-    if (!g -> verticesFrom || !g -> verticesTo || !g -> lengths) {
-        return OUT_OF_MEMORY;
-    }
-
-    for (int i = 0; i < g -> edges; i++) {
-        int verticeFrom, verticeTo;
-        int64_t length;
-
-        if (scanf("%d%d%lli", &verticeFrom, &verticeTo, &length) < 3) {
-            return BAD_INPUT;
-        } else {
-            if (!inRangeInt(verticeFrom, 1, g -> vertices) || !inRangeInt(verticeTo, 1, g -> vertices)) {
-                return BAD_VERTEX;
-            } else if (!inRangeLong(length, 0, MAX_LENGTH)) {
-                return BAD_LENGTH;
+void freeMemory(Graph* graph, DSU* dsu) {
+    if (graph) {
+        if (graph -> table) {
+            for (int i = 0; i < graph -> edges; i++) {
+                if (graph -> table[i]) {
+                    free(graph -> table[i]);
+                }
             }
+            free(graph -> table);
+        }
+        free(graph);
+    }
+
+    if (dsu) {
+        if (dsu -> parents) {
+            free(dsu -> parents);
+        }
+        free(dsu);
+    }
+}
+
+boolean unite(DSU* dsu, int s1, int s2) {
+    s1 = find(dsu, s1);
+    s2 = find(dsu, s2);
+    if (s1 != s2) {
+        if (s1 > s2) {
+            swap(&s1, &s2);
         }
 
-        g -> verticesFrom[i] = verticeFrom;
-        g -> verticesTo[i] = verticeTo;
-        g -> lengths[i] = length;
+        dsu -> parents[s2] = s1;
+        return true;
+    } else {
+        return false;
     }
-
-    return SUCCESS;
 }
 
-int partition(Graph* g, int l, int r) {
-    int64_t x = g -> lengths[(l + r) / 2];
-    while (l <= r) {
-        while (g -> lengths[l] < x) l++;
-        while (g -> lengths[r] > x) r--;
-        if (l >= r) break;
-        swapLong(g -> lengths + l, g -> lengths + r);
-        swapInt((g -> verticesFrom + l), (g -> verticesFrom + r));
-        swapInt((g -> verticesTo + l++), (g -> verticesTo + r--));
+boolean inRange(int val, int lb, int ub) {
+    if (lb <= val && val <= ub) {
+        return true;
     }
 
-    return r;
+    return false;
 }
 
-void sortByLength(Graph* g, int nSt, int nEnd) {
+void sortTable(int** table, int nSt, int nEnd) {
     if (nSt >= nEnd) {
         return;
     }
-
     int l = nSt, r = nEnd;
-    int x = partition(g, l, r);
-    sortByLength(g, l, x);
-    sortByLength(g, x + 1, r);
+    int index = (l + r) / 2;
+    int x = table[index][2];
+    while (l <= r) {
+        while (table[l][2] < x) l++;
+        while (table[r][2] > x) r--;
+
+        if (l >= r) break;
+        swap(&table[l][0], &table[r][0]);
+        swap(&table[l][1], &table[r][1]);
+        swap(&table[l++][2], &table[r--][2]);
+    }
+    sortTable(table, l, index);
+    sortTable(table, index + 1, r);
 }
 
-ReturnCodes startAlgorithm(Graph* g) {
-    DSU* dsu = calloc(1, sizeof(DSU));
-    if (!dsu) {
-        return OUT_OF_MEMORY;
-    }
+ExitCodes fillTable(Graph* graph) {
+    int verticeFirst, verticeSecond;
+    long long length;
 
-    dsu -> parents = (int*)calloc((size_t)g -> vertices, sizeof(int));
-    dsu -> ranks = (int*)calloc((size_t)g -> vertices, sizeof(int));
-    if (!dsu -> parents || !dsu -> ranks) {
-        return OUT_OF_MEMORY;
-    }
-
-    for (int i = 0; i < g -> vertices; i++) {
-        dsu -> ranks[i] = 1;
-        dsu -> parents[i] = i;
-    }
-
-    int** edgesOfTree = (int**)calloc((size_t)g -> vertices - 1, sizeof(int*));
-    for (int i = 0; i < g -> vertices - 1; i++) {
-        edgesOfTree[i] = (int*)calloc(2, sizeof(int));
-    }
-
-    int curIndex = 0;
-    for (int i = 0; i < g -> edges; i++) {
-        if (unite(g -> verticesFrom[i] - 1, g -> verticesTo[i] - 1, dsu)) {
-            edgesOfTree[curIndex][0] = g -> verticesFrom[i];
-            edgesOfTree[curIndex++][1] = g -> verticesTo[i];
+    for (int i = 0; i < graph -> edges; i++) {
+        if (scanf("%d%d%lli", &verticeFirst, &verticeSecond, &length) < 3) {
+            return BAD_INPUT;
         }
+
+        if (!inRange(verticeFirst, 1, graph -> vertices) || !inRange(verticeSecond, 1, graph -> vertices)) {
+            return BAD_VERTEX;
+        }
+
+        if (length < 0 || length > MAX_LENGTH) {
+            return BAD_LENGTH;
+        }
+
+        graph -> table[i][0] = verticeFirst;
+        graph -> table[i][1] = verticeSecond;
+        graph -> table[i][2] = (int)length;
     }
 
-    if (dsu -> ranks[0] != g -> vertices || g -> vertices == 0) {
-        return NO_SPANNING_TREE;
-    } else for (int i = 0; i < g -> vertices - 1; i++) {
-        printf("%d %d\n", edgesOfTree[i][0], edgesOfTree[i][1]);
-    }
     return SUCCESS;
 }
 
-ReturnCodes KruskalAlgorithm() {
-    int numberOfVertices;
-    if (scanf("%d", &numberOfVertices) == 0) {
-        return BAD_INPUT;
-    }
-
-    int numberOfEdges;
-    if (scanf("%d", &numberOfEdges) == 0) {
-        return BAD_INPUT;
-    }
-
-    if (!inRangeInt(numberOfVertices, ZERO, MAX_VERTICES)) {
-        return BAD_NUMBER_VERTICES;
-    } else {
-        int maxEdges = numberOfVertices * (numberOfVertices + 1) / 2;
-        if (!inRangeInt(numberOfEdges, ZERO, maxEdges)) {
-            return BAD_NUMBER_EDGES;
-        }
-    }
-
-    Graph* graph = calloc(1, sizeof(Graph));
+ExitCodes KruskalAlgorithm() {
+    Graph* graph = (Graph*)calloc(1, sizeof(Graph));
     if (!graph) {
+        freeMemory(graph, NULL);
         return OUT_OF_MEMORY;
     }
 
-    ReturnCodes creatingGraph;
-    if ((creatingGraph = createGraph(graph, numberOfVertices, numberOfEdges)) != SUCCESS) {
-        return creatingGraph;
+    if (scanf("%d", &graph -> vertices) == 0) {
+        freeMemory(graph, NULL);
+        return BAD_INPUT;
+    } else if (!inRange(graph -> vertices, 0, MAX_VERTICES)) {
+        freeMemory(graph, NULL);
+        return BAD_NUMBER_VERTICES;
     }
 
-    sortByLength(graph, 0, numberOfEdges - 1);
-
-    ReturnCodes runningAlgorithm;
-    if ((runningAlgorithm = startAlgorithm(graph)) != SUCCESS) {
-
-        return runningAlgorithm;
+    if (scanf("%d", &graph -> edges) == 0) {
+        freeMemory(graph, NULL);
+        return BAD_INPUT;
+    } else if (!inRange(graph -> edges, 0, graph -> vertices * (graph -> vertices + 1) / 2)) {
+        freeMemory(graph, NULL);
+        return BAD_NUMBER_EDGES;
     }
+
+
+    graph -> table = (int**)calloc((size_t)graph -> edges, sizeof(int*));
+    if (!graph -> table) {
+        freeMemory(graph, NULL);
+        return OUT_OF_MEMORY;
+    }
+
+    for (int i = 0; i < graph -> edges; i++) {
+        graph -> table[i] = (int*)calloc(3, sizeof(int));
+        if (!graph -> table[i]) {
+            freeMemory(graph, NULL);
+            return OUT_OF_MEMORY;
+        }
+    }
+
+    ExitCodes fillingTable;
+    if ((fillingTable = fillTable(graph)) != SUCCESS) {
+        freeMemory(graph, NULL);
+        return fillingTable;
+    }
+
+    sortTable(graph -> table, 0, graph -> edges - 1);
+
+    DSU* dsu = (DSU*)calloc(1, sizeof(DSU));
+    if (!dsu) {
+        freeMemory(graph, dsu);
+        return OUT_OF_MEMORY;
+    }
+    dsu -> parents = (int*)calloc((size_t)graph -> vertices, sizeof(int));
+    if (!dsu -> parents) {
+        freeMemory(graph, dsu);
+        return OUT_OF_MEMORY;
+    }
+
+    for (int i = 0; i < graph -> vertices; i++) {
+        dsu -> parents[i] = i;
+    }
+
+    for (int i = 0; i < graph -> edges; i++) {
+        if (!unite(dsu, graph -> table[i][0] - 1, graph -> table[i][1] - 1)) {
+            graph -> table[i][0] = -1;
+        }
+    }
+
+    if (graph -> vertices == 0) {
+        freeMemory(graph, dsu);
+        return NO_SPAN_TREE;
+    }
+
+    if (graph -> vertices != 1) {
+        for (int i = 0; i < graph -> vertices; i++) {
+            find(dsu, i);
+            if (dsu -> parents[i] != 0) {
+                freeMemory(graph, dsu);
+                return NO_SPAN_TREE;
+            }
+        }
+    }
+
+    int counterOfEdges = 0;
+    for (int i = 0; i < graph -> edges; i++) {
+        if (graph -> table[i][0] > 0) {
+            printf("%d %d\n", graph -> table[i][0], graph -> table[i][1]);
+        }
+
+        if (counterOfEdges == graph -> vertices - 1) {
+            break;
+        }
+    }
+
+    freeMemory(graph, dsu);
+
     return SUCCESS;
 }
 
 int main() {
-    ReturnCodes returnCode;
-    if ((returnCode = KruskalAlgorithm()) != SUCCESS) {
-        printf("%s", exitMessages[returnCode]);
-        return returnCode;
+    ExitCodes completingAlgorithm;
+    if ((completingAlgorithm = KruskalAlgorithm()) != SUCCESS) {
+        printf("%s", exitMessages[completingAlgorithm]);
     }
-    return SUCCESS;
+
+    return completingAlgorithm;
 }

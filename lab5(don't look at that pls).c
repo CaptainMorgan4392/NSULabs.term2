@@ -575,8 +575,6 @@ ExitCodes start() {
         default:
             return WRONG_INPUT;
     }
-    
-    return SUCCESS;
 }
 
 int main() {

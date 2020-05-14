@@ -576,8 +576,7 @@ ExitCodes start() {
             return WRONG_INPUT;
     }
     
-    fclose(fileIn);
-    fclose(fileOut);
+    return SUCCESS;
 }
 
 int main() {
